@@ -51,6 +51,35 @@ A comprehensive Windows desktop application designed to enhance your learning ex
 - .NET 8.0 Runtime
 - Internet connection for AI features
 
+## 🔑 API Key Setup (Required)
+
+**Important**: This application requires a Google Gemini API key to function. Your API key must be configured as an environment variable.
+
+### Step 1: Get a Google Gemini API Key
+1. Visit [Google AI Studio](https://makersuite.google.com/app/apikey)
+2. Sign in with your Google account
+3. Click "Create API Key"
+4. Copy the generated API key
+
+### Step 2: Set Environment Variable
+**Option A: Use the provided setup script (Recommended)**
+1. Run `setup_api_key.bat` as Administrator
+2. Edit the script to replace `YOUR_NEW_API_KEY_HERE` with your actual API key
+3. The script will set the environment variable system-wide
+
+**Option B: Manual setup**
+Open Command Prompt as Administrator and run:
+```batch
+setx GEMINI_API_KEY "YOUR_ACTUAL_API_KEY_HERE" /M
+```
+
+### Step 3: Verify Setup
+Open a new Command Prompt and run:
+```batch
+echo %GEMINI_API_KEY%
+```
+You should see your API key displayed.
+
 ## Installation
 
 1. Clone the repository:

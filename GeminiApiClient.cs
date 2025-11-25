@@ -59,36 +59,48 @@ namespace Ai_Study_Buddy___Gemini
             return raw;
         }
 
-        public async Task<List<Question>> GenerateQuizQuestionsAsync(string sourceText, int count = 5)
+        public async Task<List<Question>> GenerateQuizQuestionsAsync(string sourceText, int count = 5, string questionType = "choices")
         {
-            var prompt = $"Generate {count} multiple-choice questions (A-D) based ONLY on this content:\n{sourceText}\n" +
+            string typeInstruction = questionType.ToLower() switch
+            {
+                "enumeration" => "Generate fill-in-the-blank/short answer questions. For each question, provide the question text and the correct answer. Format: Q: [Question Text] Answer: [Correct Answer]",
+                "mixed" => "Generate a mix of multiple-choice (A-D) and fill-in-the-blank questions. For multiple-choice: use A) B) C) D) format. For fill-in-the-blank: use 'Answer: [Correct Answer]' format.",
+                _ => "Generate multiple-choice questions (A-D) based ONLY on this content."
+            };
+
+            var prompt = $"Generate {count} questions based ONLY on this content:\n{sourceText}\n" +
+                         $"{typeInstruction}\n" +
                          "Strictly follow this format for each question:\n" +
                          "Q: [Question Text]\n" +
-                         "A) [Option A]\n" +
-                         "B) [Option B]\n" +
-                         "C) [Option C]\n" +
-                         "D) [Option D]\n" +
-                         "Answer: [Correct Option Letter]\n" +
+                         (questionType == "enumeration" ?
+                             "Answer: [Correct Answer]\n" :
+                             "A) [Option A]\nB) [Option B]\nC) [Option C]\nD) [Option D]\nAnswer: [Correct Option Letter]\n") +
                          "---\n" +
                          "Ensure there is a '---' separator between questions.";
             string text = await GenerateTextAsync(prompt);
-            return ParseQuestions(text);
+            return ParseQuestions(text, questionType);
         }
 
-        public async Task<List<Question>> GenerateMockExamAsync(string sourceText, int count = 20, string difficulty = "mixed")
+        public async Task<List<Question>> GenerateMockExamAsync(string sourceText, int count = 20, string difficulty = "mixed", string questionType = "choices")
         {
-            var prompt = $"Create a mock exam of {count} {difficulty} difficulty multiple-choice questions based on:\n{sourceText}\n" +
+            string typeInstruction = questionType.ToLower() switch
+            {
+                "enumeration" => "Generate fill-in-the-blank/short answer questions. For each question, provide the question text and the correct answer. Format: Q: [Question Text] Answer: [Correct Answer]",
+                "mixed" => "Generate a mix of multiple-choice (A-D) and fill-in-the-blank questions. For multiple-choice: use A) B) C) D) format. For fill-in-the-blank: use 'Answer: [Correct Answer]' format.",
+                _ => "Generate multiple-choice questions (A-D) based ONLY on this content."
+            };
+
+            var prompt = $"Create a mock exam of {count} {difficulty} difficulty questions based on:\n{sourceText}\n" +
+                         $"{typeInstruction}\n" +
                          "Strictly follow this format for each question:\n" +
                          "Q: [Question Text]\n" +
-                         "A) [Option A]\n" +
-                         "B) [Option B]\n" +
-                         "C) [Option C]\n" +
-                         "D) [Option D]\n" +
-                         "Answer: [Correct Option Letter]\n" +
+                         (questionType == "enumeration" ?
+                             "Answer: [Correct Answer]\n" :
+                             "A) [Option A]\nB) [Option B]\nC) [Option C]\nD) [Option D]\nAnswer: [Correct Option Letter]\n") +
                          "---\n" +
                          "Ensure there is a '---' separator between questions.";
             string text = await GenerateTextAsync(prompt);
-            return ParseQuestions(text);
+            return ParseQuestions(text, questionType);
         }
 
         public async Task<List<string>> SummarizeTopicsAsync(string sourceText, int maxTopics = 10)
@@ -106,7 +118,7 @@ namespace Ai_Study_Buddy___Gemini
             return list;
         }
 
-        private List<Question> ParseQuestions(string raw)
+        private List<Question> ParseQuestions(string raw, string questionType = "choices")
         {
             var questions = new List<Question>();
             // Normalize line endings and split by separator
@@ -117,6 +129,9 @@ namespace Ai_Study_Buddy___Gemini
             {
                 var lines = b.Split('\n', StringSplitOptions.RemoveEmptyEntries);
                 var q = new Question();
+                bool isEnumeration = questionType == "enumeration" ||
+                                   (questionType == "mixed" && !lines.Any(l => l.Trim().StartsWith("A)") || l.Trim().StartsWith("A.")));
+
                 foreach (var line in lines)
                 {
                     var t = line.Trim();
@@ -124,38 +139,56 @@ namespace Ai_Study_Buddy___Gemini
 
                     if (t.StartsWith("Q:", StringComparison.OrdinalIgnoreCase))
                         q.Text = t.Substring(2).Trim();
-                    else if (t.StartsWith("A)", StringComparison.OrdinalIgnoreCase) || t.StartsWith("A.", StringComparison.OrdinalIgnoreCase))
-                        q.Options.Add(new AnswerOption { Text = t.Substring(2).Trim() });
-                    else if (t.StartsWith("B)", StringComparison.OrdinalIgnoreCase) || t.StartsWith("B.", StringComparison.OrdinalIgnoreCase))
-                        q.Options.Add(new AnswerOption { Text = t.Substring(2).Trim() });
-                    else if (t.StartsWith("C)", StringComparison.OrdinalIgnoreCase) || t.StartsWith("C.", StringComparison.OrdinalIgnoreCase))
-                        q.Options.Add(new AnswerOption { Text = t.Substring(2).Trim() });
-                    else if (t.StartsWith("D)", StringComparison.OrdinalIgnoreCase) || t.StartsWith("D.", StringComparison.OrdinalIgnoreCase))
-                        q.Options.Add(new AnswerOption { Text = t.Substring(2).Trim() });
-                    else if (t.StartsWith("Answer:", StringComparison.OrdinalIgnoreCase))
+                    else if (!isEnumeration)
                     {
-                        var parts = t.Split(new[] { ':' }, 2);
-                        if (parts.Length > 1)
+                        // Multiple choice parsing
+                        if (t.StartsWith("A)", StringComparison.OrdinalIgnoreCase) || t.StartsWith("A.", StringComparison.OrdinalIgnoreCase))
+                            q.Options.Add(new AnswerOption { Text = t.Substring(2).Trim() });
+                        else if (t.StartsWith("B)", StringComparison.OrdinalIgnoreCase) || t.StartsWith("B.", StringComparison.OrdinalIgnoreCase))
+                            q.Options.Add(new AnswerOption { Text = t.Substring(2).Trim() });
+                        else if (t.StartsWith("C)", StringComparison.OrdinalIgnoreCase) || t.StartsWith("C.", StringComparison.OrdinalIgnoreCase))
+                            q.Options.Add(new AnswerOption { Text = t.Substring(2).Trim() });
+                        else if (t.StartsWith("D)", StringComparison.OrdinalIgnoreCase) || t.StartsWith("D.", StringComparison.OrdinalIgnoreCase))
+                            q.Options.Add(new AnswerOption { Text = t.Substring(2).Trim() });
+                        else if (t.StartsWith("Answer:", StringComparison.OrdinalIgnoreCase))
                         {
-                            var letter = parts[1].Trim().ToUpperInvariant();
-                            // Handle cases like "Answer: A) Option Text" or just "Answer: A"
-                            if (letter.Length > 1 && (letter[1] == ')' || letter[1] == '.'))
-                                letter = letter.Substring(0, 1);
-                            else if (letter.Length > 0)
-                                letter = letter.Substring(0, 1);
-
-                            q.CorrectIndex = letter switch
+                            var parts = t.Split(new[] { ':' }, 2);
+                            if (parts.Length > 1)
                             {
-                                "A" => 0,
-                                "B" => 1,
-                                "C" => 2,
-                                "D" => 3,
-                                _ => 0
-                            };
+                                var letter = parts[1].Trim().ToUpperInvariant();
+                                // Handle cases like "Answer: A) Option Text" or just "Answer: A"
+                                if (letter.Length > 1 && (letter[1] == ')' || letter[1] == '.'))
+                                    letter = letter.Substring(0, 1);
+                                else if (letter.Length > 0)
+                                    letter = letter.Substring(0, 1);
+
+                                q.CorrectIndex = letter switch
+                                {
+                                    "A" => 0,
+                                    "B" => 1,
+                                    "C" => 2,
+                                    "D" => 3,
+                                    _ => 0
+                                };
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Enumeration parsing - store answer directly
+                        if (t.StartsWith("Answer:", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var parts = t.Split(new[] { ':' }, 2);
+                            if (parts.Length > 1)
+                            {
+                                var answer = parts[1].Trim();
+                                q.Options.Add(new AnswerOption { Text = answer });
+                                q.CorrectIndex = 0; // Only one option for enumeration
+                            }
                         }
                     }
                 }
-                if (!string.IsNullOrWhiteSpace(q.Text) && q.Options.Count >= 2)
+                if (!string.IsNullOrWhiteSpace(q.Text) && q.Options.Count >= 1)
                     questions.Add(q);
             }
             return questions;

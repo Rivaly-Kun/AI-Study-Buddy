@@ -27,12 +27,16 @@ namespace Ai_Study_Buddy___Gemini
         private FlowLayoutPanel _optionsPanel;
         private Panel _feedbackPanel;
         private Label _feedbackLabel;
+        private ComboBox _questionTypeCombo;
+        private TextBox _enumerationInput;
+        private Button _enumerationSubmit;
 
         // Quiz State
         private List<Question> _questions;
         private int _currentQuestionIndex = 0;
         private int _correctAnswers = 0;
         private int _totalAttempts = 0;
+        private string _currentQuestionType = "choices";
 
         public QuizModeControl(GeminiApiClient apiClient, string sourceText, string contextLabel, bool hasMaterial)
         {
@@ -77,6 +81,16 @@ namespace Ai_Study_Buddy___Gemini
                 Location = new Point(20, 45)
             };
 
+            _questionTypeCombo = new ComboBox
+            {
+                Size = new Size(120, 28),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = new Font("Segoe UI", 9F),
+                Location = new Point(150, 40)
+            };
+            _questionTypeCombo.Items.AddRange(new[] { "Choices", "Enumeration", "Mixed" });
+            _questionTypeCombo.SelectedIndex = 0;
+
             _generateBtn = new Button
             {
                 Text = _hasMaterial ? "🎯 Start Quiz" : "⚠ Add Material",
@@ -102,6 +116,7 @@ namespace Ai_Study_Buddy___Gemini
 
             _headerPanel.Controls.Add(_progressLabel);
             _headerPanel.Controls.Add(_scoreLabel);
+            _headerPanel.Controls.Add(_questionTypeCombo);
             _headerPanel.Controls.Add(_generateBtn);
 
             // Content Panel (Scrollable)
@@ -143,6 +158,37 @@ namespace Ai_Study_Buddy___Gemini
                 WrapContents = false
             };
 
+            // Enumeration input (hidden by default)
+            _enumerationInput = new TextBox
+            {
+                Width = 300,
+                Location = new Point(0, 70),
+                Font = new Font("Segoe UI", 10F),
+                Visible = false
+            };
+            _enumerationInput.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    e.SuppressKeyPress = true;
+                    HandleEnumerationSubmit();
+                }
+            };
+
+            _enumerationSubmit = new Button
+            {
+                Text = "Submit",
+                Width = 100,
+                Height = 36,
+                Location = new Point(0, 110),
+                BackColor = Color.FromArgb(79, 70, 229),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Visible = false
+            };
+            _enumerationSubmit.FlatAppearance.BorderSize = 0;
+            _enumerationSubmit.Click += (_, __) => HandleEnumerationSubmit();
+
             // Feedback Panel
             _feedbackPanel = new Panel
             {
@@ -165,6 +211,8 @@ namespace Ai_Study_Buddy___Gemini
 
             _contentPanel.Controls.Add(_questionLabel);
             _contentPanel.Controls.Add(_optionsPanel);
+            _contentPanel.Controls.Add(_enumerationInput);
+            _contentPanel.Controls.Add(_enumerationSubmit);
             _contentPanel.Controls.Add(_feedbackPanel);
 
             contentContainer.Controls.Add(_contentPanel);
@@ -248,7 +296,9 @@ namespace Ai_Study_Buddy___Gemini
 
             try
             {
-                _questions = await _api.GenerateQuizQuestionsAsync(_source);
+                var questionType = _questionTypeCombo.SelectedItem?.ToString()?.ToLower() ?? "choices";
+                _currentQuestionType = questionType;
+                _questions = await _api.GenerateQuizQuestionsAsync(_source, questionType: questionType);
 
                 if (_questions == null || _questions.Count == 0)
                 {
@@ -284,6 +334,11 @@ namespace Ai_Study_Buddy___Gemini
             _optionsPanel.Controls.Clear();
             _feedbackPanel.Visible = false;
 
+            // Default visibility
+            _optionsPanel.Visible = true;
+            _enumerationInput.Visible = false;
+            _enumerationSubmit.Visible = false;
+
             // Update progress
             _progressLabel.Text = $"Question {_currentQuestionIndex + 1} of {_questions.Count}";
             _scoreLabel.Text = $"Score: {_correctAnswers}/{_totalAttempts}";
@@ -291,33 +346,50 @@ namespace Ai_Study_Buddy___Gemini
             // Update question text
             _questionLabel.Text = question.Text;
 
-            // Create option buttons
-            for (int i = 0; i < question.Options.Count; i++)
+            // If quiz was requested as enumeration, treat as short-answer regardless of options returned
+            if (_currentQuestionType == "enumeration" || (question.Options != null && question.Options.Count == 1 && _currentQuestionType != "choices"))
             {
-                var option = question.Options[i];
-                var optionIndex = i;
-
-                var optionBtn = new Button
+                _optionsPanel.Visible = false;
+                _enumerationInput.Visible = true;
+                _enumerationSubmit.Visible = true;
+                _enumerationInput.Text = string.Empty;
+                _enumerationInput.BackColor = Color.White;
+                _enumerationInput.ForeColor = Color.Black;
+                _feedbackPanel.Visible = false;
+            }
+            else
+            {
+                // Create option buttons
+                if (question.Options != null)
                 {
-                    Text = $"{(char)('A' + i)}. {option.Text}",
-                    Width = 300,
-                    Height = 50,
-                    BackColor = Color.White,
-                    ForeColor = Color.FromArgb(40, 40, 40),
-                    FlatStyle = FlatStyle.Flat,
-                    Font = new Font("Segoe UI", 9.5F),
-                    TextAlign = ContentAlignment.MiddleLeft,
-                    Padding = new Padding(15, 0, 15, 0),
-                    Cursor = Cursors.Hand,
-                    Margin = new Padding(0, 0, 0, 10),
-                    Tag = optionIndex
-                };
-                optionBtn.FlatAppearance.BorderColor = Color.FromArgb(220, 220, 230);
-                optionBtn.FlatAppearance.MouseOverBackColor = Color.FromArgb(245, 245, 250);
+                    for (int i = 0; i < question.Options.Count; i++)
+                    {
+                        var option = question.Options[i];
+                        var optionIndex = i;
 
-                optionBtn.Click += (_, __) => HandleOptionClick(optionBtn, question, optionIndex);
+                        var optionBtn = new Button
+                        {
+                            Text = $"{(char)('A' + i)}. {option.Text}",
+                            Width = 300,
+                            Height = 50,
+                            BackColor = Color.White,
+                            ForeColor = Color.FromArgb(40, 40, 40),
+                            FlatStyle = FlatStyle.Flat,
+                            Font = new Font("Segoe UI", 9.5F),
+                            TextAlign = ContentAlignment.MiddleLeft,
+                            Padding = new Padding(15, 0, 15, 0),
+                            Cursor = Cursors.Hand,
+                            Margin = new Padding(0, 0, 0, 10),
+                            Tag = optionIndex
+                        };
+                        optionBtn.FlatAppearance.BorderColor = Color.FromArgb(220, 220, 230);
+                        optionBtn.FlatAppearance.MouseOverBackColor = Color.FromArgb(245, 245, 250);
 
-                _optionsPanel.Controls.Add(optionBtn);
+                        optionBtn.Click += (_, __) => HandleOptionClick(optionBtn, question, optionIndex);
+
+                        _optionsPanel.Controls.Add(optionBtn);
+                    }
+                }
             }
 
             // Update navigation buttons
@@ -330,7 +402,8 @@ namespace Ai_Study_Buddy___Gemini
                 _nextBtn.Text = "Next →";
 
             // Adjust content panel height
-            _contentPanel.Height = _questionLabel.Height + _optionsPanel.Height + _feedbackPanel.Height + 40;
+            var optionsHeight = _optionsPanel.Visible ? _optionsPanel.Height : (_enumerationInput.Visible ? _enumerationInput.Height + _enumerationSubmit.Height + 10 : 0);
+            _contentPanel.Height = _questionLabel.Height + optionsHeight + _feedbackPanel.Height + 40;
         }
 
         private void HandleOptionClick(Button clickedBtn, Question question, int selectedIndex)
@@ -381,6 +454,45 @@ namespace Ai_Study_Buddy___Gemini
 
             // Update score
             _scoreLabel.Text = $"Score: {_correctAnswers}/{_totalAttempts}";
+        }
+
+        private void HandleEnumerationSubmit()
+        {
+            if (_questions == null || _currentQuestionIndex >= _questions.Count) return;
+            var question = _questions[_currentQuestionIndex];
+
+            // Disable submit to prevent double submits
+            _enumerationSubmit.Enabled = false;
+
+            _totalAttempts++;
+            var userAnswer = _enumerationInput.Text?.Trim() ?? string.Empty;
+            var correctAnswer = question.Options != null && question.Options.Count > 0 ? question.Options[0].Text : string.Empty;
+
+            bool isCorrect = string.Equals(userAnswer, correctAnswer, StringComparison.OrdinalIgnoreCase);
+
+            if (isCorrect)
+            {
+                _correctAnswers++;
+                _feedbackLabel.Text = "✓ Correct!";
+                _feedbackLabel.ForeColor = Color.FromArgb(21, 128, 61);
+                _feedbackPanel.BackColor = Color.FromArgb(220, 252, 231);
+            }
+            else
+            {
+                _feedbackLabel.Text = $"✗ Incorrect — Answer: {correctAnswer}";
+                _feedbackLabel.ForeColor = Color.FromArgb(185, 28, 28);
+                _feedbackPanel.BackColor = Color.FromArgb(254, 226, 226);
+            }
+
+            _feedbackPanel.Visible = true;
+            _feedbackPanel.Location = new Point(0, _enumerationInput.Bottom + 10);
+            _contentPanel.Height = _questionLabel.Height + _optionsPanel.Height + _feedbackPanel.Height + 80;
+
+            // Update score
+            _scoreLabel.Text = $"Score: {_correctAnswers}/{_totalAttempts}";
+
+            // Re-enable submit for future questions
+            _enumerationSubmit.Enabled = true;
         }
 
         private void NavigateQuestion(int direction)

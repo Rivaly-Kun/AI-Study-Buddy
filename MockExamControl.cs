@@ -21,6 +21,7 @@ namespace Ai_Study_Buddy___Gemini
         // Setup controls
         private Panel _setupPanel;
         private ComboBox _difficultyCombo;
+        private ComboBox _questionTypeCombo;
         private NumericUpDown _questionCount;
         private Button _startExamBtn;
 
@@ -30,6 +31,8 @@ namespace Ai_Study_Buddy___Gemini
         private Label _questionNumberLabel;
         private Label _questionTextLabel;
         private FlowLayoutPanel _optionsPanel;
+        private TextBox _enumerationInput;
+        private Button _enumerationSubmit;
         private Button _prevBtn;
         private Button _nextBtn;
         private Button _flagBtn;
@@ -47,6 +50,7 @@ namespace Ai_Study_Buddy___Gemini
         private Question[] _questions = Array.Empty<Question>();
         private bool _examStarted;
         private bool _examFinished;
+        private string _examQuestionType = "choices";
 
         public MockExamControl(GeminiApiClient apiClient, string sourceText, string contextLabel, bool hasMaterial)
         {
@@ -249,6 +253,35 @@ namespace Ai_Study_Buddy___Gemini
             difficultyRow.Controls.Add(_difficultyCombo);
             difficultyRow.Controls.Add(diffLabel);
 
+            // Question type setting
+            var typeRow = new Panel
+            {
+                Dock = DockStyle.Top,
+                Height = 50,
+                Padding = new Padding(0, 12, 0, 0)
+            };
+
+            var typeLabel = new Label
+            {
+                Text = "Question Type",
+                Dock = DockStyle.Left,
+                Width = 120,
+                Font = new Font("Segoe UI", 9F),
+                TextAlign = ContentAlignment.MiddleLeft
+            };
+
+            _questionTypeCombo = new ComboBox
+            {
+                Dock = DockStyle.Fill,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Font = new Font("Segoe UI", 10F)
+            };
+            _questionTypeCombo.Items.AddRange(new[] { "Choices", "Enumeration", "Mixed" });
+            _questionTypeCombo.SelectedIndex = 0;
+
+            typeRow.Controls.Add(_questionTypeCombo);
+            typeRow.Controls.Add(typeLabel);
+
             // Question count setting
             var countRow = new Panel
             {
@@ -296,6 +329,7 @@ namespace Ai_Study_Buddy___Gemini
             countRow.Controls.Add(countLabel);
 
             settingsCard.Controls.Add(countRow);
+            settingsCard.Controls.Add(typeRow);
             settingsCard.Controls.Add(difficultyRow);
             settingsCard.Controls.Add(cardTitle);
 
@@ -385,6 +419,41 @@ namespace Ai_Study_Buddy___Gemini
                 Padding = new Padding(0, 8, 0, 0)
             };
 
+            // Enumeration input (hidden by default)
+            _enumerationInput = new TextBox
+            {
+                Width = 340,
+                Height = 35,
+                Location = new Point(0, 8),
+                Font = new Font("Segoe UI", 10F),
+                Visible = false,
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            _enumerationInput.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    e.SuppressKeyPress = true;
+                    HandleEnumerationSubmit();
+                }
+            };
+
+            _enumerationSubmit = new Button
+            {
+                Text = "Submit Answer",
+                Width = 120,
+                Height = 35,
+                Location = new Point(0, 50),
+                BackColor = Color.FromArgb(79, 70, 229),
+                ForeColor = Color.White,
+                FlatStyle = FlatStyle.Flat,
+                Visible = false
+            };
+            _enumerationSubmit.FlatAppearance.BorderSize = 0;
+            _enumerationSubmit.Click += (_, __) => HandleEnumerationSubmit();
+
+            _questionContainer.Controls.Add(_enumerationSubmit);
+            _questionContainer.Controls.Add(_enumerationInput);
             _questionContainer.Controls.Add(_optionsPanel);
             _questionContainer.Controls.Add(_questionTextLabel);
             _questionContainer.Controls.Add(_questionNumberLabel);
@@ -519,12 +588,16 @@ namespace Ai_Study_Buddy___Gemini
             _startExamBtn.Enabled = false;
             _startExamBtn.Text = "⏳ Generating exam...";
 
+            // Remember the selected question type so we can force enumeration UI
+            _examQuestionType = _questionTypeCombo.SelectedItem?.ToString()?.ToLower() ?? "choices";
+
             try
             {
                 var difficulty = _difficultyCombo.SelectedItem?.ToString()?.ToLower() ?? "mixed";
+                var questionType = _questionTypeCombo.SelectedItem?.ToString()?.ToLower() ?? "choices";
                 int count = (int)_questionCount.Value;
 
-                _questions = (await _api.GenerateMockExamAsync(_source, count, difficulty)).ToArray();
+                _questions = (await _api.GenerateMockExamAsync(_source, count, difficulty, questionType)).ToArray();
 
                 if (_questions.Length == 0)
                 {
@@ -574,11 +647,31 @@ namespace Ai_Study_Buddy___Gemini
 
             // Clear and rebuild options
             _optionsPanel.Controls.Clear();
+            _enumerationInput.Visible = false;
+            _enumerationSubmit.Visible = false;
+            _enumerationInput.Text = string.Empty;
+            _enumerationInput.BackColor = Color.White;
+            _enumerationInput.ForeColor = Color.Black;
 
-            for (int i = 0; i < question.Options.Count; i++)
+            // If this is an enumeration (short-answer) question or the exam was requested as enumeration, show the text box
+            if (_examQuestionType == "enumeration" || (question.Options != null && question.Options.Count == 1))
             {
-                var optionPanel = CreateOptionButton(question, i);
-                _optionsPanel.Controls.Add(optionPanel);
+                _optionsPanel.Visible = false;
+                _enumerationInput.Visible = true;
+                _enumerationSubmit.Visible = true;
+            }
+            else
+            {
+                _optionsPanel.Visible = true;
+                // Create option buttons for multiple choice
+                if (question.Options != null)
+                {
+                    for (int i = 0; i < question.Options.Count; i++)
+                    {
+                        var optionPanel = CreateOptionButton(question, i);
+                        _optionsPanel.Controls.Add(optionPanel);
+                    }
+                }
             }
 
             // Update navigation buttons
@@ -621,6 +714,7 @@ namespace Ai_Study_Buddy___Gemini
                 TextAlign = ContentAlignment.MiddleLeft
             };
 
+
             radioButton.CheckedChanged += (s, e) =>
             {
                 if (radioButton.Checked)
@@ -638,6 +732,42 @@ namespace Ai_Study_Buddy___Gemini
             panel.Controls.Add(radioButton);
 
             return panel;
+        }
+
+        private void HandleEnumerationSubmit()
+        {
+            if (_questions.Length == 0 || _currentIndex >= _questions.Length) return;
+            var question = _questions[_currentIndex];
+
+            // Disable submit to prevent double submits
+            _enumerationSubmit.Enabled = false;
+
+            var userAnswer = _enumerationInput.Text?.Trim() ?? string.Empty;
+            var correctAnswer = question.Options != null && question.Options.Count > 0 ? question.Options[0].Text : string.Empty;
+
+            bool isCorrect = string.Equals(userAnswer, correctAnswer, StringComparison.OrdinalIgnoreCase);
+
+            // Store the answer (we'll use UserChoice to indicate if they answered)
+            question.UserChoice = isCorrect ? 0 : -1; // 0 for correct, -1 for incorrect
+
+            // Show feedback by updating the input styling
+            if (isCorrect)
+            {
+                _enumerationInput.BackColor = Color.FromArgb(220, 252, 231);
+                _enumerationInput.ForeColor = Color.FromArgb(21, 128, 61);
+            }
+            else
+            {
+                _enumerationInput.BackColor = Color.FromArgb(254, 226, 226);
+                _enumerationInput.ForeColor = Color.FromArgb(185, 28, 28);
+                // Show correct answer in a tooltip or message
+                _enumerationInput.Text = $"{userAnswer} (Correct: {correctAnswer})";
+            }
+
+            UpdateExamProgress();
+
+            // Re-enable submit for future questions
+            _enumerationSubmit.Enabled = true;
         }
 
         private void NavigateQuestion(int direction)

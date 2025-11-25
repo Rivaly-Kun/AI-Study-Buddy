@@ -78,10 +78,16 @@ namespace Ai_Study_Buddy___Gemini
             btnClearPdfs.Click += (_, __) => ClearAllPdfs();
             panelCramCard.Controls.Add(btnClearPdfs);
 
-            // Wire generate button on the Cram card to open Cram mode and trigger generate
-            btnGenerateTopics.Click += async (_, __) => await GenerateTopicsFromCramCardAsync();
+            // Get API key from environment variable
+            string? apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+            if (string.IsNullOrEmpty(apiKey))
+            {
+                MessageBox.Show("GEMINI_API_KEY environment variable is not set. Please set it to your Google Gemini API key.", "API Key Missing", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Application.Exit();
+                return;
+            }
 
-            geminiApi = new GeminiApiClient(httpClient, "AIzaSyA3QmEdnbzewFlffYGDu9LfVPrtl2DGSqw");
+            geminiApi = new GeminiApiClient(httpClient, apiKey);
 
             buttonSettings.Click += buttonSettings_Click;
 
@@ -1135,7 +1141,12 @@ namespace Ai_Study_Buddy___Gemini
 
             try
             {
-                string apiKey = "AIzaSyA3QmEdnbzewFlffYGDu9LfVPrtl2DGSqw";
+                string? apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+                if (string.IsNullOrEmpty(apiKey))
+                {
+                    SafeAppend("❌ Error: GEMINI_API_KEY environment variable is not set.\n\n");
+                    return;
+                }
                 string url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={apiKey}";
 
                 conversationHistory.Add($"user: {userInput}");
@@ -1354,7 +1365,11 @@ namespace Ai_Study_Buddy___Gemini
         {
             try
             {
-                string apiKey = "AIzaSyA3QmEdnbzewFlffYGDu9LfVPrtl2DGSqw";
+                string? apiKey = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+                if (string.IsNullOrEmpty(apiKey))
+                {
+                    return "❌ Error: GEMINI_API_KEY environment variable is not set.";
+                }
                 string url = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={apiKey}";
                 var body = new
                 {
