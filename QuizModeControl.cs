@@ -322,7 +322,7 @@ namespace Ai_Study_Buddy___Gemini
 
             // Update navigation buttons
             _prevBtn.Enabled = _currentQuestionIndex > 0;
-            _nextBtn.Enabled = _currentQuestionIndex < _questions.Count - 1;
+            _nextBtn.Enabled = true; // Always enable next button
 
             if (_currentQuestionIndex == _questions.Count - 1)
                 _nextBtn.Text = "Finish";

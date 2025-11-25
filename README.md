@@ -23,16 +23,27 @@ A comprehensive Windows desktop application designed to enhance your learning ex
 - Eraser tool for removing highlights
 
 ### ⚙️ Customization
-- Light/Dark theme support
-- Adjustable font sizes
+- Light/Dark theme support with automatic high-contrast detection
+- Adjustable font sizes (configurable via slider)
+- Customizable AI assistant name (default: "Bud")
 - AI response style preferences (Detailed, Concise, etc.)
-- Auto-save settings for highlights
+- Auto-save settings for highlights and notes
 - Notification preferences
+- Default study mode selection
+- All settings persisted to local SQLite database
 
 ### 📄 Document Support
 - PDF file loading and text extraction
 - Multiple PDF management
 - Context-aware AI responses based on loaded documents
+
+### 💾 Chat History
+- Automatic saving of all conversations to local database
+- Session-based chat organization with intelligent title generation
+- Browse and reload previous chat sessions
+- Delete unwanted chat sessions with confirmation
+- Titles automatically generated based on conversation content (e.g., "Quiz/Study Questions", "Math Problems", "Programming Help")
+- Persistent chat history across app restarts
 
 ## Requirements
 
@@ -85,6 +96,13 @@ A comprehensive Windows desktop application designed to enhance your learning ex
 3. Highlight important text for automatic note saving
 4. Use the eraser tool to remove highlights
 
+### Chat History Management
+- All conversations are automatically saved to the database
+- Click "💬 Chat History" in the sidebar to browse previous sessions
+- Select a session to reload and continue the conversation
+- Delete sessions you no longer need with the "Delete Session" button
+- Each session is uniquely identified and can be revisited anytime
+
 ### Note Management
 - Highlights are automatically saved when auto-save is enabled
 - Right-click in chat to manually add selections to notes
@@ -92,11 +110,13 @@ A comprehensive Windows desktop application designed to enhance your learning ex
 
 ## Architecture
 
-- **Frontend**: Windows Forms (.NET 8)
-- **AI Integration**: Google Gemini API
-- **Database**: SQLite with Entity Framework
-- **PDF Processing**: PdfPig and iText7 libraries
-- **Styling**: Custom text formatting and highlighting
+- **Frontend**: Windows Forms (.NET 8) with custom UI controls
+- **AI Integration**: Google Gemini 2.5 Flash API for conversational AI
+- **Database**: SQLite with custom DatabaseHelper for notes, settings, and chat history persistence
+- **PDF Processing**: PdfPig for text extraction and iText7 for advanced PDF operations
+- **Styling**: Custom text formatting, highlighting, and theme system
+- **Settings Management**: Centralized AppSettings model with database persistence
+- **Chat History**: Session-based conversation storage with intelligent title generation based on content analysis
 
 ## Dependencies
 

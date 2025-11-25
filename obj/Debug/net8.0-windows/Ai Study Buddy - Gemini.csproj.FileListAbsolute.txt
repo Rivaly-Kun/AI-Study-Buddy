@@ -91,3 +91,4 @@ C:\Users\gabri\source\repos\Ai Study Buddy - Gemini\Ai Study Buddy - Gemini\obj\
 C:\Users\gabri\source\repos\Ai Study Buddy - Gemini\Ai Study Buddy - Gemini\obj\Debug\net8.0-windows\Ai Study Buddy - Gemini.pdb
 C:\Users\gabri\source\repos\Ai Study Buddy - Gemini\Ai Study Buddy - Gemini\obj\Debug\net8.0-windows\Ai Study Buddy - Gemini.genruntimeconfig.cache
 C:\Users\gabri\source\repos\Ai Study Buddy - Gemini\Ai Study Buddy - Gemini\obj\Debug\net8.0-windows\ref\Ai Study Buddy - Gemini.dll
+C:\Users\gabri\source\repos\Ai Study Buddy - Gemini\Ai Study Buddy - Gemini\obj\Debug\net8.0-windows\Ai Study Buddy - Gemini.sourcelink.json
